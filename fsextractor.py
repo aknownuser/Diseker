@@ -43,11 +43,13 @@ def start_emulator(fs_path, arch, cfg):
     os.system("%s -M malta -kernel %s\
     -hda %s -append \"root=/dev/sda1 console=tty0\"" % (sim[arch], cfg["images"]["debian"]["kernel"], cfg["images"]["debian"]["image"]))
 
+def send_commands():
+    pass
 
 def _get_config():
     cfg = None
     with open("config.yml") as ymlfile:
-        cfg = yaml.load(ymlfile)
+        cfg = yaml.load(ymlfile, Loader=yaml.FullLoader)
     return cfg
 
 
@@ -81,7 +83,8 @@ def identify_platform(filepath):
         #filetype = filemagic.id_filename(filepath)
         filetype = magic.from_file(filepath)
     except Exception as e:
-        # certain version of libmagic throws error while parsing file, the CPU information is however included in the error in somecases
+        # certain version of libmagic throws error while parsing file, the CPU information is however included\
+        # in the error in somecases
         filetype = str(e)
     #        filemagic.close()
     if "ELF 32-bit" in filetype:
@@ -107,10 +110,11 @@ def _get_match(values, origin):
             return val
     return ""
 
+
 if __name__ == "__main__":
-    #extract("/home/pc/TFM/Dlink/DIR822C1_FW301WWb02.bin")
+    extract("/home/kali/Downloads/DIR822C1_FW301WWb02.bin")
     cfg = _get_config()
     arch = _get_arch_dos("DIR822C1_FW301WWb02/fs/usr")
     print(arch)
     
-    start_emulator("DIR822C1_FW301WWb02/fs/usr", arch[1], cfg)
+    start_emulator("DIR822C1_FW301WWb02/fs", arch[1], cfg)

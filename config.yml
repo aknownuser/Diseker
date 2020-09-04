@@ -2,5 +2,5 @@ simulation:
   system: full
 images:
   debian:
-    kernel: /media/pc/Shared/Images/vmlinux-3.2.0-4-4kc-malta
-    image: /media/pc/Shared/Images/debian_wheezy_mips_standard.qcow2
+    kernel: /home/kali/Downloads/vmlinux-2.6.32-5-4kc-malta
+    image: /home/kali/Downloads/debian_squeeze_mips_standard.qcow2
