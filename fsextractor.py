@@ -60,12 +60,29 @@ def get_qemu_command(arch, cfg):
     result = "%s -M malta -kernel %s\
      -hda %s \
      -net user,hostfwd=tcp::10022-:22\
-     -net user,hostfwd=tcp::10088-:80\
      -net nic\
      -monitor stdio \
      -append \"root=/dev/sda1 console=tty0\"" % (sim[arch], cfg["images"]["debian"]["kernel"], cfg["images"]["debian"]["image"])
 
     return result
+
+
+def get_qemu_command_wlan(arch, cfg):
+
+    sim = {"arm": "qemu-system-arm",
+           "mips": "qemu-system-mips",
+           "x86": "qemu-system-i386"}
+    
+    result = "%s -M malta -kernel %s\
+         -hda %s \
+         -net user,hostfwd=tcp::10022-:22\
+         -net nic\
+         -monitor stdio \
+         -append \"root=/dev/sda1 console=tty0\"" % (
+        sim[arch], cfg["images"]["debian"]["kernel"], cfg["images"]["debian"]["image"])
+
+    return result
+
 
 def _get_config():
     cfg = None
