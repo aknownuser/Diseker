@@ -1,19 +1,19 @@
 # Processes rules
--a always,exit -F arch=b32 -S kill -S execve -S fork -S getpid -S brk -S clone -S clone3 -S execveat -F key=precess-interaction
--a always,exit -F arch=b64 -S kill -S execve -S fork -S getpid -S brk -S clone -S clone3 -S execveat -F key=precess-interaction
+-a always,exit -F arch=b32 -S kill -S execve -S fork -S getpid -S brk -S clone -S execveat -F key=precess-interaction
+-a always,exit -F arch=b64 -S kill -S execve -S fork -S getpid -S brk -S clone -S execveat -F key=precess-interaction
 
 # Pipe stuff
--a always,exit -F arch=b32 -S pipe -S pipe2 -S tee -F key=pipe-creation
--a always,exit -F arch=b64 -S pipe -S pipe2 -S tee -F key=pipe-creation
+-a always,exit -F arch=b32 -S pipe -S tee -F key=pipe-creation
+-a always,exit -F arch=b64 -S pipe -S tee -F key=pipe-creation
 
 # Files rules
--a always,exit -F arch=b32 -S open -S creat -S link -S unlink -S symlink -S mknod -S openat -S openat2 -S linkat -S unlinkat -S mknodat -F key=file-creation
--a always,exit -F arch=b32 -S renameat2 -S rename -S renameat -F key=file-move
--a always,exit -F arch=b32 -S dup -S dup2 -S dup3 -F key=file-pipe
+-a always,exit -F arch=b32 -S open -S creat -S link -S unlink -S symlink -S mknod -S openat -S linkat -S unlinkat -S mknodat -F key=file-creation
+-a always,exit -F arch=b32 -S rename -S renameat -F key=file-move
+-a always,exit -F arch=b32 -S dup -F key=file-pipe
 
--a always,exit -F arch=b64 -S open -S creat -S link -S unlink -S symlink -S mknod -S openat -S openat2 -S linkat -S unlinkat -S mknodat -F key=file-creation
--a always,exit -F arch=b64 -S renameat2 -S rename -S renameat -F key=file-move
--a always,exit -F arch=b64 -S dup -S dup2 -S dup3 -F key=file-pipe
+-a always,exit -F arch=b64 -S open -S creat -S link -S unlink -S symlink -S mknod -S openat -S linkat -S unlinkat -S mknodat -F key=file-creation
+-a always,exit -F arch=b64 -S rename -S renameat -F key=file-move
+-a always,exit -F arch=b64 -S dup -F key=file-pipe
 
 
 # Kernel modification rules
@@ -21,8 +21,8 @@
 -a always,exit -F arch=b64 -S init_module -S delete_module -S add_key -S request_key -S kexec_load -S finit_module -S kexec_file_load -F key=kernel-module
 
 #Events and signals
--a always,exit -F arch=b32 -S signalfd4 -S eventfd2 -S signalfd -S eventfd -F key=events-fd
--a always,exit -F arch=b64 -S signalfd4 -S eventfd2 -S signalfd -S eventfd -F key=events-fd
+-a always,exit -F arch=b32 -S signalfd -S eventfd -F key=events-fd
+-a always,exit -F arch=b64 -S signalfd -S eventfd -F key=events-fd
 
 # Networking and sockets
 -a always,exit -F arch=b32 -S socket -S bind -S connect -S accept -S setdomainname -F key=connections
