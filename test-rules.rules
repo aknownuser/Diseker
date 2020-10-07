@@ -1,0 +1,38 @@
+# Processes rules
+-a always,exit -F arch=b32 -S kill -S execve -S fork -S getpid -S brk -S clone -S execveat -F key=precess-interaction
+-a always,exit -F arch=b64 -S kill -S execve -S fork -S getpid -S brk -S clone -S execveat -F key=precess-interaction
+
+# Pipe stuff
+-a always,exit -F arch=b32 -S pipe -S tee -F key=pipe-creation
+-a always,exit -F arch=b64 -S pipe -S tee -F key=pipe-creation
+
+# Files rules
+-a always,exit -F arch=b32 -S open -S creat -S link -S unlink -S symlink -S mknod -S openat -S linkat -S unlinkat -S mknodat -F key=file-creation
+-a always,exit -F arch=b32 -S rename -S renameat -F key=file-move
+-a always,exit -F arch=b32 -S dup -F key=file-pipe
+
+-a always,exit -F arch=b64 -S open -S creat -S link -S unlink -S symlink -S mknod -S openat -S linkat -S unlinkat -S mknodat -F key=file-creation
+-a always,exit -F arch=b64 -S rename -S renameat -F key=file-move
+-a always,exit -F arch=b64 -S dup -F key=file-pipe
+
+
+# Kernel modification rules
+-a always,exit -F arch=b32 -S init_module -S delete_module -S add_key -S request_key -S finit_module -F key=kernel-module
+-a always,exit -F arch=b64 -S init_module -S delete_module -S add_key -S request_key -S kexec_load -S finit_module -S kexec_file_load -F key=kernel-module
+
+#Events and signals
+-a always,exit -F arch=b32 -S signalfd -S eventfd -F key=events-fd
+-a always,exit -F arch=b64 -S signalfd -S eventfd -F key=events-fd
+
+# Networking and sockets
+-a always,exit -F arch=b32 -S socket -S bind -S connect -S setdomainname -F key=connections
+-a always,exit -F arch=b64 -S socket -S bind -S connect -S accept -S setdomainname -F key=connections
+
+# -a always,exit -S bind
+# -a always,exit -S connect
+# -a always,exit -S listen
+# -a always,exit -S accept
+# -a always,exit -S send
+# -a always,exit -S sendto
+# -a always,exit -S recv
+# -a always,exit -S setdomainname
