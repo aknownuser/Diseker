@@ -1,14 +1,11 @@
 import re
+import os
 
-class Node:
-
-    def __init__(self, types, items):
-        self.type=types
-        self.items= items
 
 class Event:
 
     def __init__(self):
+        self.time = ""
         self.syscall = ""
         self.ownership = list()
         self.command = ""
@@ -16,13 +13,46 @@ class Event:
         self.arg_items = list()
 
 
+class NetworkEvent:
+
+    def __init__(self):
+        self.time = ""
+        self.src = ""
+        self.dst = ""
+        self.s_port = ""
+        self.d_port = ""
+        self.p = ""
+        self.data = ""
+
+
+class LogParser:
+
+    def __init__(self, ppid, path):
+        self.ppid = ppid
+        self.path = path
+        self.proctree = {}
+
+    def parse(self):
+        for root, dirs, files in os.walk(self.path, topdown=False):
+            for name_fl in files:
+                name_fl_plt = name_fl.split(".")
+                pid = name_fl_plt[0]
+                values = []
+                if len(name_fl_plt) > 2:
+                    values.append(name_fl_plt[1])
+
+                self.proctree[pid] = (values, EventParser(os.path.join(root,name_fl), populate=True).event)
+
+    def json(self):
+        pass
+
+
 class EventParser:
 
-    def __init__(self, path_logs, pid, populate=False):
+    def __init__(self, path_logs, populate=False):
         self._path = path_logs
-        self._treelogs = {}
         if populate:
-            self.populate()
+            self.event = self.populate()
 
     def populate(self):
         events = []
@@ -31,6 +61,7 @@ class EventParser:
             for event in self._each_chunk(lg, "----"):
                 evt = Event()
                 lines = event.split("\n")
+
                 for line in lines:
                     if line == "":
                         continue
@@ -41,6 +72,13 @@ class EventParser:
                     elif fields[0] == "type=PATH":
                         dict = self._gen_dict(fields[4:], "=")
                         evt.arg_items.append(dict["name"])
+
+                    elif fields[0] == "type=SOCKADDR":
+                        dict = self._gen_dict(fields[4:], "=")
+                        if dict["fam"] == "inet":
+                            evt.arg_items += [dict["fam"], dict["laddr"],dict["lport"]]
+                        elif dict["fam"] == "netlink":
+                            evt.arg_items += [dict["fam"], dict["nlnk-fam"], dict["nlnk-pid"]]
 
                     elif fields[0] == "type=SYSCALL":
                         dict = self._gen_dict(fields[4:], "=")
@@ -53,9 +91,13 @@ class EventParser:
 
                         # if dict["pid"] not in self._treelogs.keys():
                         #    self._treelogs[dict["pid"]] = []
+                        evt.time = re.search("\d*/\d*/\d* \d*:\d*:\d*.\d*:\d*", line).group(0).split(" ")[1]
                         events.append(evt)
 
         return events
+
+    def json(self):
+        pass
 
     def _gen_dict(self, fields,separator):
         dict={}
@@ -82,6 +124,32 @@ class EventParser:
                     yield part
 
 
+class NetworkParser:
+
+    def __init__(self):
+        self.data = []
+
+    def get_entry(self):
+        pass
+
+    def parse(self):
+        pass
+
+    def json(self):
+        pass
+
+
+class TelnetNetworkParser(NetworkParser):
+
+    def __init__(self):
+        super.__init__()
+
+    def parse(self):
+        pass
+
 
 if __name__ == "__main__":
-    parser_obj = Parser("6043.logs", "6043",populate=True)
+    #parser_obj = EventParser("6043.logs", "6043",populate=True)
+    parser_path = LogParser("2504", "Logs/")
+    parser_path.parse()
+    print("Hello")

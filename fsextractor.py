@@ -38,7 +38,7 @@ def extract(file_path):
         return DEST_PATH+"/fs"
 
 
-def start_emulator(fs_path, arch, cfg):
+def start_emulator(fs_path, arch, cfg, interface="tap1"):
 
     sim = {"arm": "qemu-system-arm",
            "mips": "qemu-system-mips",
@@ -46,10 +46,10 @@ def start_emulator(fs_path, arch, cfg):
 
     os.system("%s -M malta -kernel %s\
     -hda %s \
-    -net root,hostfwd=tcp::88811:80,hostfwd=tcp::44331-:443,hostfwd=tcp::10022-:22\
+    -netdev tap,id=nd0,ifname=%s -device e1000,netdev=nd0 \
     -net nic \
     -monitor stdio \
-    -append \"root=/dev/sda1 console=tty0\"" % (sim[arch], cfg["images"]["debian"]["kernel"], cfg["images"]["debian"]["image"]))
+    -append \"root=/dev/sda1 console=tty0\"" % (sim[arch], cfg["images"]["debian"]["kernel"], cfg["images"]["debian"]["image"], interface))
 
 
 def get_qemu_command(arch, cfg):
@@ -135,7 +135,8 @@ if __name__ == "__main__":
     arch = _get_arch_dos("DIR822C1_FW301WWb02/fs/usr")
     #print(arch)
     #start_emulator("DIR822C1_FW301WWb02/fs", "mips", cfg)
-
+    time.sleep(4)
+    start_emulator("DIR822C1_FW301WWb02/fs", "mips", cfg, interface="tap2")
     qemu_command = get_qemu_command(arch[1], cfg)
     sand_unit = Unit("DIR822C1_FW301WWb02/fs_tar", user="root", password="root")
     sand_unit.execute(qemu_command)

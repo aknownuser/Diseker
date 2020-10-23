@@ -1,6 +1,6 @@
 # Processes rules
--a always,exit -F arch=b32 -S kill -S execve -S fork -S getpid -S brk -S clone -S execveat -F key=precess-interaction
--a always,exit -F arch=b64 -S kill -S execve -S fork -S getpid -S brk -S clone -S execveat -F key=precess-interaction
+-a always,exit -F arch=b32 -S kill -S execve -S fork -S getpid -S clone -S execveat -F key=precess-interaction
+-a always,exit -F arch=b64 -S kill -S execve -S fork -S getpid -S clone -S execveat -F key=precess-interaction
 
 # Pipe stuff
 -a always,exit -F arch=b32 -S pipe -S tee -F key=pipe-creation
@@ -17,7 +17,8 @@
 
 
 # Kernel modification rules
--a always,exit -F arch=b32 -S init_module -S delete_module -S add_key -S request_key -S kexec_load -S finit_module -S kexec_file_load -F key=kernel-module
+# The following syscalls does not exist in b32 kexec_load and kexec_file_load
+-a always,exit -F arch=b32 -S init_module -S delete_module -S add_key -S request_key -S finit_module -F key=kernel-module
 -a always,exit -F arch=b64 -S init_module -S delete_module -S add_key -S request_key -S kexec_load -S finit_module -S kexec_file_load -F key=kernel-module
 
 #Events and signals
@@ -25,8 +26,14 @@
 -a always,exit -F arch=b64 -S signalfd -S eventfd -F key=events-fd
 
 # Networking and sockets
--a always,exit -F arch=b32 -S socket -S bind -S connect -S accept -S setdomainname -F key=connections
--a always,exit -F arch=b64 -S socket -S bind -S connect -S accept -S setdomainname -F key=connections
+-a always,exit -F arch=b32 -S socket -F a0=2 -F key=connections
+-a always,exit -F arch=b64 -S socket -F a0=2 -F key=connections
+-a always,exit -F arch=b32 -S socket -F a0=10 -F key=connections
+-a always,exit -F arch=b64 -S socket -F a0=10 -F key=connections
+
+# accept syscall is not in arch 32
+-a always,exit -F arch=b32 -S setdomainname -S connect -F key=connections
+-a always,exit -F arch=b64 -S accept -S setdomainname -S connect -F key=connections
 
 # -a always,exit -S bind
 # -a always,exit -S connect

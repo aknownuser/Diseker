@@ -1,3 +1,6 @@
+#pcap
+*.pcap
+*.cap
 #YAML
 *.yml
 

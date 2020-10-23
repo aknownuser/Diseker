@@ -25,7 +25,7 @@ class Unit:
             if not qemu.isalive():
                 raise Exception("[QEMU] Machine was unable to start")
             # Send file system to QEMU VM
-            ut.scp(self.host, self.port, self.user, self.password, self.fs_path, "/root", dir=False)
+            #ut.scp(self.host, self.port, self.user, self.password, self.fs_path, "/root", dir=False)
             qemu.wait()
         except Exception as e:
             print("[-] Error: %s" % e)
