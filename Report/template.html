@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="">
+    <meta name="author" content="Mark Otto, Jacob Thornton, and Bootstrap contributors">
+    <meta name="generator" content="Jekyll v4.1.1">
+    <title>Fixed top navbar example · Bootstrap</title>
+
+
+    <!-- Bootstrap core CSS -->
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+      .bd-placeholder-img {
+        font-size: 1.125rem;
+        text-anchor: middle;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+      }
+
+      @media (min-width: 768px) {
+        .bd-placeholder-img-lg {
+          font-size: 3.5rem;
+        }
+      }
+
+    </style>
+    <!-- Custom styles for this template -->
+    <link href="navbar-top-fixed.css" rel="stylesheet">
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+      <a class="navbar-brand" href="#">Diseker</a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarCollapse">
+        <ul class="navbar-nav mr-auto">
+          <li class="nav-item active">
+            <a class="nav-link" href="#">Summary<span class="sr-only">(current)</span></a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#static_analyser">Static Analysis</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#dynamic_analyser">Dynamic analysis</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">Network behaviour</a>
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+
+    <main role="main" class="container">
+      <h2>File Details</h2>
+
+      <table class="table table-hover">
+        <tbody>
+          <tr>
+            <th scope="row">File name</th>
+            <td id="file_name">Name </td>
+          </tr>
+          <tr>
+            <th scope="row">Size</th>
+            <td id="file_size">50 MB</td>
+          </tr>
+          <tr>
+            <th scope="row">Type</th>
+            <td id="file_type">ELF</td>
+          </tr>
+          <tr>
+            <th scope="row">Architecture</th>
+            <td id="file_arch">ARM</td>
+          </tr>
+          <tr>
+            <th scope="row">Hash MD5</th>
+            <td id="file_md5">65465adfad</td>
+          </tr>
+          <tr>
+            <th scope="row">Hash SHA1</th>
+            <td id="file_sha1">a65s4df65a4sd6f54as65d</td>
+          </tr>
+          <tr>
+            <th scope="row">Hash SHA256</th>
+            <td id="file_sha256">wer654a65sd4fa65v64s5d4fa56s4df46awe45f</td>
+          </tr>
+        </tbody>
+      </table>
+      <hr/>
+    </main>
+<hr/>
+    <div id="static_analyser" class="container pt-3">
+      <h2>Static Analyser</h2>
+      <p>In the entropy of the file, all the sections of the file and their size, the important strings (unless they have
+        been encrypted) and some extra data.</p>
+
+      <h4 class="pt-1">Binary entropy</h4>
+      <image id="entropy_iamge">Image Holder</image>
+      <!---------------->
+      <h4 class="pt-2">Binary Sections</h4>
+      <div class="card">
+        <div class="card-header" id="sections_head">
+          <h5 class="mb-0">
+          <button class="btn" data-toggle="collapse" data-target="#sections" area-controls="sections">
+            Sections
+          </button>
+
+          </h5>
+        </div>
+        <div id="sections" class="collapse" area-labelledby="sections_head">
+          <div class="card-body">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">Start address</th>
+                  <th scope="col">Size (bytes)</th>
+                </tr>
+              </thead>
+              <div id="sections_table">
+
+              </div>
+            </table>
+          </div>
+        </div>
+      </div>
+
+
+      <h4 class="pt-2">Binary Strings</h4>
+      <div class="card">
+        <div class="card-header" id="inter_head">
+          <h5 class="mb-0">
+            <button class="btn" data-toggle="collapse" data-target="#inter_strings" aria-expanded="true" area-controls="inter_strings">
+              Interesting strings
+            </button>
+
+          </h5>
+        </div>
+        <div id="inter_strings" class="collapse show" area-labelledby="inter_head">
+          <div class="card-body">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th scope="col">Section</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">Length (bytes)</th>
+                  <th scope="col">String</th>
+                </tr>
+              </thead>
+              <div id="inter_strings_table">
+
+              </div>
+            </table>
+          </div>
+        </div>
+          <div class="card-header" id="all_head">
+            <h5 class="mb-0">
+              <button class="btn" data-toggle="collapse" data-target="#all_strings" aria-expanded="false" area-controls="all_strings">
+                All strings
+              </button>
+            </h5>
+          </div>
+          <div id="all_strings" class="collapse" area-labelledby="all_head">
+            <div class="card-body">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th scope="col">Section</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Length (bytes)</th>
+                    <th scope="col">String</th>
+                  </tr>
+                </thead>
+
+                <div id="all_strings_table">
+
+                </div>
+              </table>
+            </div>
+
+        </div>
+      </div>
+      <!---------------->
+      <h4 class="pt-2" >Binary Functions</h4>
+      The number of functions with known name are <span id="n_known_func">0</span> and unknown functions are <span id="n_unknown_func">0</span>
+       <div class="card">
+          <div class="card-header" id="known_head">
+            <h5 class="mb-0">
+            <button class="btn" data-toggle="collapse" data-target="#known_func" area-controls="known_func">
+              Known functions
+            </button>
+
+            </h5>
+          </div>
+          <div id="known_func" class="collapse" area-labelledby="known_head">
+            <div class="card-body">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th scope="col">Offset</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Size (bytes)</th>
+                  </tr>
+                </thead>
+                <div id="known_func_table">
+
+                </div>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+<hr/>
+    <div id="dynamic_analyser" class="container pt-3">
+      <h2>Dynamic Analyser</h2>
+      Basic statistics about binary behaviour:
+      <table class="table">
+        <tbody>
+          <tr>
+            <th scope="row">Number of files written</th>
+            <td id="w_files">0</td>
+          </tr>
+          <tr>
+            <th scope="row">Number of files read</th>
+            <td id="r_files">0</td>
+          </tr>
+          <tr>
+            <th scope="row">Traffic request count</th>
+            <td id="n_requests">0</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4 class="pt-1">Process Tree</h4>
+      The following process tree belongs to binary executed and all the children processes it has spawned.
+      <div id="process_tree">
+
+      </div>
+
+      Syscall and network traffic related to it per process spawned:
+      <div id="detailed_processes">
+
+      </div>
+    </div>
+
+
+  </body>
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+      <script>window.jQuery || document.write('<script src="../assets/js/vendor/jquery.slim.min.js"><\/script>')</script>
+    <script src="js/bootstrap.bundle.min.js"></script>
+</html>

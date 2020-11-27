@@ -31,12 +31,16 @@ function process_follower {
 }
 
 #Lets execute the file and obtain the file PID
+BASE=$(pwd)
 NAME=$1
+SYSCALL_PATH=logs/syscalls
+NET_PATH=logs/network
 
-mkdir -p network
-mkdir -p tmp
+mkdir -p $NET_PATH
+mkdir -p $SYSCALL_PATH
 
-tcpdump -nn -s0 -w network/net_logs.pcap & 
+tcpdump -nn -s0 -w $NET_PATH/net_logs.pcap &
+
 TCPDUMP_PID="$!"
 
 ./$NAME &
@@ -48,30 +52,29 @@ sleep 1m
 
 echo "First Analysis" 
 
-ausearch -i -p "$APP_PID" -m SYSCALL > tmp/$APP_PID.logs 
+ausearch -i -p "$APP_PID" -m SYSCALL > $SYSCALL_PATH/$APP_PID.logs
 
 #process_follower $APP_PID tmp
 
-./follower.sh $APP_PID tmp
+./follower.sh $APP_PID $BASE/$SYSCALL_PATH
 
-kill -9 $TCPDUMP_PID
+kill -15 $TCPDUMP_PID
 
 # Get the FTP traffic 
-tcpdump --vAs0 -r network/net_logs.pcap "port ftp or ftp-data" >network/ftp_net.logs 
+tcpdump -nn -vA -r $NET_PATH/net_logs.pcap port ftp or ftp-data -w $NET_PATH/ftp_net.pcap
 
 #Get NTP traffic 
-tcpdump --vAs0 -r network/net_logs.pcap "port 123" >network/ntp_net.logs
+tcpdump -nn -vA -r $NET_PATH/net_logs.pcap port 123 -w $NET_PATH/ntp_net.pcap
 
 #Get RDP traffic 
-tcpdupm -r network/net_logs.pcap "port 3389" > network/rdp_net.logs
+tcpdupm -nn -r $NET_PATH/net_logs.pcap "port 3389" -w $NET_PATH/rdp_net.pcap
 
 #Get ICMP traffic
-tcpdump -r network/net_logs.pcap icmp > network/icmp_net.logs
+tcpdump -nn -r $NET_PATH/net_logs.pcap icmp -w $NET_PATH/icmp_net.pcap
 
 #Get DNS traffic
-tcpdump -r network/net_logs.pcap "port 53" >network/dns_net.logs
+tcpdump -nn -r $NET_PATH/net_logs.pcap "port 53" -w $NET_PATH/dns_net.pcap
 
 #Get Telnet traffic 
-tcpdump -r network/net_logs.pcap "port 23" >network/telnet_net.logs
+tcpdump -nn -r $NET_PATH/net_logs.pcap "port 23" -w $NET_PATH/telnet_net.pcap
 
-#ausearch -i --ppid "$APP_PID" -m SYSCALL | grep SYSCALL | cut -d ' ' -f 15 | cut -d '=' -f 2 | uniq -d

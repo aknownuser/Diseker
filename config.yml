@@ -1,6 +1,25 @@
-simulation:
-  system: full
 images:
-  debian:
+  mips:
     kernel: /media/pc/Shared/Images/vmlinux-3.2.0-4-4kc-malta
     image: /media/pc/Shared/Images/debian_wheezy_mips_standard.qcow2
+    pass:
+    host:
+    port:
+  arm:
+    - 32:
+        kernel: /home/pc/QImages/arm_versatile_audit/rootfs.ext2
+        image: /home/pc/QImages/arm_versatile_audit/zImage
+        kernelle:
+        imagele:
+        cmd:
+        qemu-system-aarch64 -M virt -cpu cortex-a53 -nographic -smp 1 -kernel {kernel} -append \"root=/dev/vda console=ttyAMA0\" -netdev user,id=eth0 -device virtio-net-device,netdev=eth0 -drive file={fs}, if=none,format=raw,id=hd0 -device virtio-blk-device,drive=hd0
+    - 64:
+        kernel:
+        image:
+        kernelle:
+        imagele:
+    pass:
+    host:
+    port:
+
+  tmp: /tmp/
