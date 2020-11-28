@@ -10,7 +10,7 @@ import time
 import shutil
 import os
 import threading
-import queue
+from dbconnections import *
 
 from binwalk.core import common as bin_common
 
@@ -35,6 +35,10 @@ class StaticAnalyser(Analyser):
         self.out["sections"] = []
         self.out["strings"] = {}
         self.out["entropy"] = []
+
+    def get_hash(self):
+        r2 = r2pipe.open(self.file_path)
+        return r2.syscmdj("rahash2 -j -a sha256 %s" % self.file_path)["hash"]
 
     def analyse(self):
         r2 = r2pipe.open(self.file_path)
@@ -209,30 +213,31 @@ class Unit(threading.Thread):
         self.fs_path = fs_path
         self.file = file
         self.alive = False
-        self.static = StaticAnalyser(self.file)
+        self.static_analyser = None
         self.cfg = ut.get_config(cfg_path)
         self.dynamic_logs = None
-        #self.passw = cfg[arch]["pass"]
-        #self.host = cfg[arch]["host"]
-        #self.port = cfg[arch]["port"]
-
-        #self.arch = arch
-        #self.bit = bit
-        #self.endian = endianess
-        #self.cfg = cfg
+        # Connect with DB if its already done then OKEY
+        MongoConnection.connect()
 
     def run(self):
+        # Check if the file has already been analysed
+        self.static_analyser = StaticAnalyser(self.file)
+        data = MongoConnection.get_data(self.static_analyser.get_hash())
 
-        #Execute the static analyser
-        self.static.analyse()
-        #TODO: Endianess of the file is not checked properly
-        self.dynamic = DynamicAnalyser(self.file, self.cfg,
-                                       self.static.out["file"]["arch"],
-                                       self.static.out["file"]["bits"],
-                                       "le")
-        # Execute the dynamic analyser
+        if data is {}:
 
-        self.dynamic_logs = self.dynamic.analyse()
+            #Execute the static analyser
+            self.static_analyser.analyse()
+            #TODO: Endianess of the file is not checked properly
+            self.dynamic = DynamicAnalyser(self.file, self.cfg,
+                                           self.static_analyser.out["file"]["arch"],
+                                           self.static_analyser.out["file"]["bits"],
+                                           "le")
+            # Execute the dynamic analyser
+
+            self.dynamic_logs = self.dynamic.analyse()
+        else:
+            pass
     """
     def execute(self):
 
@@ -337,15 +342,19 @@ class CommandBuilder:
         return pth
 
 
+# For this think I may need to use ASYNC IO with queues
 class Orchestrator:
 
     def __init__(self, max_threads, cfg):
         self.max_th = max_threads
-        self.unit_jobs = []
-        self.cfg = cfg
 
-    def add_job(self, job_cmd):
-        pass
+        self.unit_jobs = []
+        self.reports_list = []
+        self.client = MongoConnection()
+        self.client.connect()
+
+        self.cfg = cfg
+        self.results = []
 
     def execute_group(self, instances):
         pass
@@ -353,8 +362,13 @@ class Orchestrator:
     def execute_ordered_group(self, list_instances):
         pass
 
-    def execute_once(self):
-        pass
+    def execute_once(self, cmd):
+        hash256 = ut.sha256_checksum(cmd["file"])
+        val = self.client.get_data(hash256)
+        if val is None:
+            pass
+        else:
+            self.results.append({'report': True, 'val': val})
 
     def wait_finish(self):
         pass

@@ -5,6 +5,8 @@ import datetime
 import pytz
 import string
 import random
+import hashlib
+
 # IPV4SEG = r'(?:^| )(?P<address>((?:[1-9]?\d|1\d{2}|2[0-4]\d|25[0-5])\.){3}(?:[1-9]?\d|1\d{2}|2[0-4]\d|25[0-5]))(?P<slash>/)?(?(slash)(?P<cidr>[0-9]|[12][0-9]|3[0-2]))(?:$| )'
 
 IPV4ADDR = r'^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
@@ -106,6 +108,14 @@ def get_rand_string(length, codef=string.ascii_letters):
     :return: random string
     """
     return ''.join(random.choice(codef) for i in range(length))
+
+
+def sha256_checksum(filename, block_size=65536):
+    sha256 = hashlib.sha256()
+    with open(filename, 'rb') as f:
+        for block in iter(lambda: f.read(block_size), b''):
+            sha256.update(block)
+    return sha256.hexdigest()
 
 # Static function get QEMU command, this one can be used by any one or any class, since
 # it has been defined to establish the scope of the program, it should only be changed

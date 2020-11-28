@@ -103,22 +103,40 @@ class HTML:
 
 class ReportGenerator:
 
-    def __init__(self, schema, lgpath):
+    def __init__(self, schema, pth_dynamic_logs, static_logs, filename):
         self.schema = schema
-        self.logs_path = lgpath
+        self.report = None
+        self.pth_dynamic_logs = pth_dynamic_logs
+        self.static_logs = static_logs
+
+        self.filename = filename
+
         self._nevts = None
         self._sevts = None
+
         self._protocols = [pr.NTP, pr.ICMP, pr.DNS, pr.TELNET, pr.HTTP]
 
     def generate(self):
-        self._nevts = pr.NetworkParser(os.path.join(self.logs_path, pr.NETWORK))
-        self._sevts = pr.LogParser(os.path.join(self.logs_path, pr.SYSCALL))
+        self.report = HTML(self.schema, self.filename)
+
+        # Populate the static logs
+        self.report.put_general_info(self.static_logs["file"])
+        self.report.put_static_strings(self.static_logs["strings"])
+        self.report.put_functions(self.static_logs["func"])
+        self.report.put_sections(self.static_logs["sections"])
+
+
+        # Correlate the logs of the dynamic analysis
+
+        self._nevts = pr.NetworkParser(os.path.join(self.pth_dynamic_logs, pr.NETWORK))
+        self._sevts = pr.LogParser(os.path.join(self.pth_dynamic_logs, pr.SYSCALL))
 
         self._nevts.parse()
         self._sevts.parse()
 
         self._correlate_logs()
-        print("false")
+
+        # Populate the results
 
     def _correlate_logs(self):
 
