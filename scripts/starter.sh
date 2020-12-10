@@ -78,3 +78,5 @@ tcpdump -nn -r $NET_PATH/net_logs.pcap "port 53" -w $NET_PATH/dns_net.pcap
 #Get Telnet traffic 
 tcpdump -nn -r $NET_PATH/net_logs.pcap "port 23" -w $NET_PATH/telnet_net.pcap
 
+#Get HTTP/s traffic
+tcpdump -nn -r $NET_PATH/net_logs.pcap port 80 or port 443 -w $NET_PATH/http_net.pcap

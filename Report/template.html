@@ -6,7 +6,8 @@
     <meta name="description" content="">
     <meta name="author" content="Mark Otto, Jacob Thornton, and Bootstrap contributors">
     <meta name="generator" content="Jekyll v4.1.1">
-    <title>Fixed top navbar example · Bootstrap</title>
+
+    <title>Diseker</title>
 
 
     <!-- Bootstrap core CSS -->
@@ -22,6 +23,15 @@
         user-select: none;
       }
 
+      .myContainer {
+        margin-left: 80px;
+        margin-right: 80px;
+      }
+      img {
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+      }
       @media (min-width: 768px) {
         .bd-placeholder-img-lg {
           font-size: 3.5rem;
@@ -50,7 +60,7 @@
             <a class="nav-link" href="#dynamic_analyser">Dynamic analysis</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="#">Network behaviour</a>
+            <a class="nav-link" href="#network_analyser">Network behaviour</a>
           </li>
         </ul>
       </div>
@@ -60,7 +70,7 @@
     <main role="main" class="container">
       <h2>File Details</h2>
 
-      <table class="table table-hover">
+      <table class="table table-hover" data-search="true" data-show-refresh="true">
         <tbody>
           <tr>
             <th scope="row">File name</th>
@@ -95,13 +105,13 @@
       <hr/>
     </main>
 <hr/>
-    <div id="static_analyser" class="container pt-3">
+    <div id="static_analyser" class="myContainer pt-3">
       <h2>Static Analyser</h2>
       <p>In the entropy of the file, all the sections of the file and their size, the important strings (unless they have
         been encrypted) and some extra data.</p>
 
       <h4 class="pt-1">Binary entropy</h4>
-      <image id="entropy_iamge">Image Holder</image>
+      <image id="entropy_image" src="entropy.png"></image>
       <!---------------->
       <h4 class="pt-2">Binary Sections</h4>
       <div class="card">
@@ -217,7 +227,7 @@
         </div>
       </div>
 <hr/>
-    <div id="dynamic_analyser" class="container pt-3">
+    <div id="dynamic_analyser" class="myContainer pt-3">
       <h2>Dynamic Analyser</h2>
       Basic statistics about binary behaviour:
       <table class="table">
@@ -238,19 +248,163 @@
       </table>
       <h4 class="pt-1">Process Tree</h4>
       The following process tree belongs to binary executed and all the children processes it has spawned.
-      <div id="process_tree">
+      <pre class="pt-1" id="process_tree">
 
-      </div>
+      </pre>
 
       Syscall and network traffic related to it per process spawned:
       <div id="detailed_processes">
 
       </div>
     </div>
+<hr/>
+  <div id="network_analyser" class="myContainer pt-3">
+    <h2>Network Traffic</h2>
+    In this section will display findings related to the traffic from the sandbox for this emulation.
+    <h4 class="pt-1">SNORT rules triggered</h4>
+    <div id="snort_rules">
 
+    </div>
+
+    <h4 class="pt-1">Traffic analysed</h4>
+
+    <div class="card">
+      <div class="card-header" id="icmp_head">
+        <h5 class="mb-0">
+          <button class="btn" data-toggle="collapse" data-target="#icmp_details" area-controls="icmp_details">
+            ICMP traffic
+          </button>
+
+        </h5>
+      </div>
+      <div id="icmp_details" class="collapse" area-labelledby="inter_head">
+        <div class="card-body">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th scope="col">Source</th>
+                <th scope="col">Destination</th>
+                <th scope="col">Type</th>
+              </tr>
+            </thead>
+            <div id="icmp_table">
+
+            </div>
+          </table>
+        </div>
+      </div>
+      <div class="card-header" id="ntp_head">
+        <h5 class="mb-0">
+          <button class="btn" data-toggle="collapse" data-target="#ntp_details" aria-expanded="false" area-controls="ntp_details">
+            NTP traffic
+          </button>
+        </h5>
+      </div>
+      <div id="ntp_details" class="collapse" area-labelledby="ntp_head">
+        <div class="card-body">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th scope="col">Source</th>
+                <th scope="col">Destination</th>
+                <th scope="col">Number of requests</th>
+              </tr>
+            </thead>
+            <div id="ntp_table">
+
+            </div>
+          </table>
+        </div>
+
+      </div>
+      <div class="card-header" id="dns_head">
+        <h5 class="mb-0">
+          <button class="btn" data-toggle="collapse" data-target="#dns_details" aria-expanded="false" area-controls="dns_details">
+            DNS traffic
+          </button>
+        </h5>
+      </div>
+
+      <div id="dns_details" class="collapse" area-labelledby="dns_head">
+        <div class="card-body">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th scope="col">Source</th>
+                <th scope="col">Destination</th>
+                <th scope="col">Type DNS</th>
+                <th scope="col">Payload</th>
+              </tr>
+            </thead>
+            <div id="dns_all_table">
+
+            </div>
+          </table>
+        </div>
+
+      </div>
+
+      <div class="card-header" id="telnet_head">
+        <h5 class="mb-0">
+          <button class="btn" data-toggle="collapse" data-target="#telnet_details" aria-expanded="false" area-controls="telnet_details">
+            Telnet traffic
+          </button>
+        </h5>
+      </div>
+
+      <div id="telnet_details" class="collapse" area-labelledby="telnet_head">
+        <div class="card-body">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th scope="col">Source</th>
+                <th scope="col">Destination</th>
+                <th scope="col">Payload</th>
+              </tr>
+            </thead>
+            <div id="telnet_table">
+
+            </div>
+          </table>
+
+        </div>
+
+      </div>
+
+      <div class="card-header" id="http_head">
+        <h5 class="mb-0">
+          <button class="btn" data-toggle="collapse" data-target="#http_details" aria-expanded="false" area-controls="http_details">
+            HTTP traffic
+          </button>
+        </h5>
+      </div>
+
+      <div id="http_details" class="collapse" area-labelledby="http_head">
+        <div class="card-body">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th scope="col">Source</th>
+                <th scope="col">Destination</th>
+                <th scope="col">Payload</th>
+              </tr>
+            </thead>
+            <div id="http_table">
+
+            </div>
+          </table>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
 
   </body>
 <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
       <script>window.jQuery || document.write('<script src="../assets/js/vendor/jquery.slim.min.js"><\/script>')</script>
-    <script src="js/bootstrap.bundle.min.js"></script>
+  <script src="js/bootstrap.bundle.min.js"></script>
+  <script src="js/bootstrap-table.min.js"></script>
 </html>

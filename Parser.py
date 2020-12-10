@@ -17,6 +17,7 @@ TELNET = "TELNET"
 DNS = "DNS"
 NTP = "NTP"
 HTTP = "HTTP"
+SNORT = "SNORT"
 
 class Tree:
 
@@ -28,9 +29,10 @@ class Tree:
         spacing = "-" * level
         str=spacing + ""
         for child in self.children:
-            str += "%s: %s\n"%(child[0],child[1])
+            str += "%s: %s\n" % (child[0], child[1])
             str += child.print_level(level+1)
         return str
+
 
 class Event:
 
@@ -58,11 +60,26 @@ class Event:
             else:
                 raise Exception("Address unrecognized")
 
+    def get_ownership_str(self):
+        return "UID: %s \nSUID: %s\nGUID: %s" %(self.ownership[0], self.ownership[1], self.ownership[2])
+
+    def get_arguments_str(self):
+        string = ""
+        for i, arg in enumerate(self.arguments):
+            string += "p%d: %s\n" % (i, str(arg))
+        return string
+
+    def get_items_str(self):
+        string = ""
+        for i, arg in enumerate(self.arg_items):
+            string += "- %s \n" % str(arg)
+        return string
 
     def __str__(self):
         return "%s CALL=%s NET=%s SUCC=%s, %s, cmd=%s, arg=%s, items=%s, NetLogsIndex=%s"%(self.time, self.syscall, self.network,
                                                                           self.success, self.ownership, self.command,
                                                                           self.arguments, self.arg_items,self.index)
+
 
 class NetworkEvent:
 
@@ -75,7 +92,6 @@ class NetworkEvent:
         self.p = ""
         self.data = ""
 
-
     def __init__(self, time, src, dst, s_port, d_port, p, data):
         self.time = time
         self.src = src
@@ -87,6 +103,9 @@ class NetworkEvent:
 
     def contains_address(self, address):
         return address == self.src or address == self.dst
+
+    def __eq__(self, other):
+        return self.src == other.src and self.dst == other.dest
 
     def __str__(self):
         return "[%s] %s: %s:%s -> %s:%s,  %s "%(self.p, self.time, self.src, self.s_port, self.dst, self.d_port, self.data)
@@ -136,17 +155,21 @@ class LogParser:
 
     def get_process_tree(self):
         keys = self.proctree.keys()
-        proc_tree=[]
+        proc_tree = {}
 
         for key in sorted(keys):
             res = None
             ppid, evts = self.proctree[key]
             base_evt = self._get_base_command_evt(evts)
             if base_evt is not None:
-                res = (ppid, key, base_evt.command)
+                res = (key, base_evt.command)
             else:
-                res = (ppid, key, "")
-            proc_tree.append(res)
+                res = (key, "")
+            try:
+                proc_tree[ppid].append(res)
+            except Exception as e:
+                proc_tree[ppid] = [res]
+
         return proc_tree
 
     def print_pid(self, key):
@@ -234,7 +257,6 @@ class EventParser:
                                 d_hour.append(micro)
                             else:
                                 d_hour.append(int(val))
-                        print(d_hour)
                         evt.time = utils.from_date_to_msepoch(date[2], date[1], date[0],d_hour[0],d_hour[1],d_hour[2],microseconds=d_hour[3])
                         evt.rel_time = rel
                         events.append(evt)
@@ -243,6 +265,9 @@ class EventParser:
         return events
 
     def json(self):
+        pass
+
+    def save_as_json(self, path):
         pass
 
     def _gen_dict(self, fields,separator):
@@ -274,6 +299,7 @@ class NetworkParser:
 
     def __init__(self, path):
         self.data = {}
+        self.statistics = {}
         self._path=path
 
     def get_entry(self, key):
@@ -282,22 +308,35 @@ class NetworkParser:
     def _thread_func(self, file):
         if "dns" in file.lower():
             self.data[DNS] = dns_parser(file)
+
         elif "icmp" in file.lower():
             self.data[ICMP] = icmp_parser(file)
+
         elif "ntp" in file.lower():
             self.data[NTP] = ntp_parser(file)
+
         elif "telnet" in file.lower():
             self.data[TELNET] = telnet_parser(file)
-        elif "http" in file.lower():
-            self.data[HTTP] =  http_parser(file)
 
-    def parse(self, maxworkers=4):
+        elif "http" in file.lower():
+            self.data[HTTP] = http_parser(file)
+
+    def parse(self, maxworkers=5):
 
         files = os.listdir(self._path)
         pool = th.ThreadPool(maxworkers)
         for file in files:
             pool.add_task(self._thread_func, os.path.join(self._path, file))
         pool.wait_completion()
+
+        with open(os.path.join(self._path, "snort_alerts.txt")) as sn_alerts:
+            self.data["SNORT"] = set()
+            pattern = re.compile(r"\[\*\*] .* \[\*\*]")
+            for line in sn_alerts.readlines():
+
+                for match in pattern.findall(line):
+                    self.data["SNORT"].add(match)
+
 
     def get_evts_address(self, protocol, adr):
         evt = []
@@ -322,6 +361,7 @@ class NetworkParser:
         except KeyError as e:
             return len(pos), pos
 
+
     def json(self):
         pass
 
@@ -338,25 +378,24 @@ def dns_parser(filename):
         dns_ent = eth[ethernet.Ethernet, ip.IP, udp.UDP, dns.DNS]
         if dns_ent is not None:
             populate = {}
-            aux = []
+            aux = {}
             if dns_ent.answers_amount != 0:
-
+                populate["ANS"] = []
                 for a in dns_ent.answers:
-                    aux.append((a.address_s,  a.name_s, a.type))
-                populate["ANS"] = aux
-                aux = []
-                if dns_ent.authrr_amount != 0:
-                    for s in dns_ent.auths:
-                        aux.append(s.server_s)
-                populate["SERVER"] = aux
+                    aux["addr"] = a.address_s
+                    aux["name"] = a.name_s
+                    aux["type"] = a.type
+                    populate["ANS"].append(aux)
 
                 events.append(NetworkEvent(ts, iply.src_s, iply.dst_s, udply.sport, udply.dport, "DNS", populate))
 
             elif dns_ent.questions_amount != 0:
-                aux = []
+                populate["REQ"] = []
+                aux = {}
                 for q in dns_ent.queries:
-                    aux.append((q.name_s, q.type))
-                populate["REQ"] = aux
+                    aux["name"] = q.name_s
+                    aux["type"] = q.type
+                    populate["REQ"].append(aux)
                 events.append(NetworkEvent(ts, iply.src_s, iply.dst_s, udply.sport, udply.dport, "DNS", populate))
 
     return events
@@ -384,6 +423,7 @@ def icmp_parser(filename):
 def ntp_parser(filename):
     reader = ppcap.Reader(filename=filename)
     ntp_events = []
+    count = 0
     for ts, buf in reader:
         ts = round(int(ts) / 1000000)
         eth = ethernet.Ethernet(buf)
@@ -392,9 +432,14 @@ def ntp_parser(filename):
         ntp_obj = eth[ethernet.Ethernet, ip.IP, udp.UDP, ntp.NTP]
 
         if ntp_obj is not None:
-            ntp_events.append(
-                NetworkEvent(ts, iply.src_s, iply.dst_s, udply.sport, udply.dport, "NTP", ""))
+            if ntp_obj.DIR_SAME:
+                aux = NetworkEvent(ts, iply.src_s, iply.dst_s, udply.sport, udply.dport, "NTP", 1)
+                item = ntp_events.__getitem__(aux)
+                if item == None:
 
+                    ntp_events.append(aux)
+                else:
+                    item.data += 1
     return ntp_events
 
 

@@ -11,18 +11,18 @@ NET=logs/network
 mkdir -p $2/$SYSCALL
 mkdir -p $2/$NET
 
-syscall_logs=$(e2ls $1:/root/$SYSCALL 2> /dev/null)
+syscall_logs=$(e2ls $1:/root/$SYSCALL)
 
 for fl in $syscall_logs
 do
-  e2cp $1:/root/$SYSCALL/$fl $SYSCALL
+  e2cp $1:/root/$SYSCALL/$fl $2/$SYSCALL
 done
 
-net_logs=$(e2ls $1:/root/$NET 2> /dev/null)
+net_logs=$(e2ls $1:/root/$NET)
 
 for fl in $net_logs
 do
-  e2cp $1:/root/$NET/$fl $NET
+  e2cp $1:/root/$NET/$fl $2/$NET
 done
 
 exit 0

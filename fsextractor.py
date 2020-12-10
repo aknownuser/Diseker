@@ -84,9 +84,9 @@ def get_qemu_command_wlan(arch, cfg):
     return result
 
 
-def _get_config():
+def _get_config(file):
     cfg = None
-    with open("config.yml") as ymlfile:
+    with open(file) as ymlfile:
         cfg = yaml.load(ymlfile)
     return cfg
 
@@ -131,7 +131,7 @@ def identify_platform(filepath):
 
 if __name__ == "__main__":
     #extract("/home/pc/TFM/Dlink/DIR822C1_FW301WWb02.bin")
-    cfg = _get_config()
+    cfg = _get_config("config.yml")
     arch = _get_arch_dos("DIR822C1_FW301WWb02/fs/usr")
     #print(arch)
     #start_emulator("DIR822C1_FW301WWb02/fs", "mips", cfg)

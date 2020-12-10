@@ -117,6 +117,31 @@ def sha256_checksum(filename, block_size=65536):
             sha256.update(block)
     return sha256.hexdigest()
 
+
+def entropy(string):
+    """
+    Measures the entropy of the a string and returns a value
+    :param string:
+    :return:
+    """
+    import math
+    log2 = lambda x: math.log(x) / math.log(2)
+    exr = {}
+    t_len = len(string)
+    infoc = 0
+    for each in string:
+        try:
+            exr[each] += 1
+        except:
+            exr[each] = 1
+    freq = 0
+    for k, v in exr.items():
+        freq = 1.0 * v / t_len
+    infoc += freq * log2(freq)
+    infoc *= -1
+
+    return infoc
+
 # Static function get QEMU command, this one can be used by any one or any class, since
 # it has been defined to establish the scope of the program, it should only be changed
 # if a major change is done to the architecture
