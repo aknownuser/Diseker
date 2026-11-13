@@ -1,142 +1,134 @@
+"""
+Firmware preparation utility (standalone, upstream of the sandbox).
+
+IoT malware frequently ships inside a vendor firmware blob. This module carves
+the root filesystem out of such a blob (binwalk + unsquashfs) and identifies
+the target CPU architecture, so the result can be fed to the sandbox:
+
+    diseker.py -i <sample_from_fs> -a <detected_arch>
+
+It is intentionally decoupled from the host<->guest orchestration in
+Orchestrator.py: carving a filesystem and booting a sample are separate
+concerns. (The previous version pulled in SandboxUnit and a stale
+cfg["images"]["debian"] emulator schema; both are gone.)
+"""
+
 import os
 import subprocess
 import time
-import magic
-import yaml
-from SandboxUnit import *
+import argparse
 import tarfile
 
-def extract(file_path):
-    DECIMAL = 0
-    FILESYSTEM=1 # "Squashfs"
-    DEST_PATH= os.path.splitext(os.path.basename(file_path))[0]
-    binwalk_call = subprocess.run(["binwalk", file_path], stdout=subprocess.PIPE)
-    binwalk_result =str(binwalk_call.stdout).split('\\n')[3:-2]
+import magic
 
-    cnt = len(binwalk_result) - 1
-    while cnt >= 0:
-        if "filesystem" in binwalk_result[cnt] and cnt == len(binwalk_result)-1:
-            DECIMAL = int(binwalk_result[cnt].split(' ')[0])
-            break
-
-    if DECIMAL != 0:
-        subprocess.run(["mkdir", DEST_PATH])
-        subprocess.run(["dd", "bs=1","skip="+str(DECIMAL),"if="+str(file_path), "of="+DEST_PATH+"/filesystem"])
-        time.sleep(2)
-        #paths_check=["/usr", "/bin", "/sbin"]
-        if FILESYSTEM == 1:
-            os.system("unsquashfs -f -d "+DEST_PATH+"/fs "+DEST_PATH+"/filesystem")
-            root_path=DEST_PATH+"/fs/usr"
-
-            for dirName, subdirList, fileList in os.walk(root_path, topdown=False):
-                if len(fileList) != 0:
-                    for file in fileList:
-                        subprocess.run(["file", file])
-
-        with tarfile.open(DEST_PATH+"/fs_tar", "x:") as tar:
-            tar.add(DEST_PATH+"/fs", arcname=os.path.basename(DEST_PATH+"/fs"))
-        return DEST_PATH+"/fs"
-
-
-def start_emulator(fs_path, arch, cfg, interface="tap1"):
-
-    sim = {"arm": "qemu-system-arm",
-           "mips": "qemu-system-mips",
-           "x86": "qemu-system-i386"}
-
-    os.system("%s -M malta -kernel %s\
-    -hda %s \
-    -netdev tap,id=nd0,ifname=%s -device e1000,netdev=nd0 \
-    -net nic \
-    -monitor stdio \
-    -append \"root=/dev/sda1 console=tty0\"" % (sim[arch], cfg["images"]["debian"]["kernel"], cfg["images"]["debian"]["image"], interface))
-
-
-def get_qemu_command(arch, cfg):
-
-    sim = {"arm": "qemu-system-arm",
-           "mips": "qemu-system-mips",
-           "x86": "qemu-system-i386"}
-    result = "%s -M malta -kernel %s\
-     -hda %s \
-     -net user,hostfwd=tcp::10022-:22\
-     -net nic\
-     -monitor stdio \
-     -append \"root=/dev/sda1 console=tty0\"" % (sim[arch], cfg["images"]["debian"]["kernel"], cfg["images"]["debian"]["image"])
-
-    return result
-
-
-def get_qemu_command_wlan(arch, cfg):
-
-    sim = {"arm": "qemu-system-arm",
-           "mips": "qemu-system-mips",
-           "x86": "qemu-system-i386"}
-    
-    result = "%s -M malta -kernel %s\
-         -hda %s \
-         -net user,hostfwd=tcp::10022-:22\
-         -net nic\
-         -monitor stdio \
-         -append \"root=/dev/sda1 console=tty0\"" % (
-        sim[arch], cfg["images"]["debian"]["kernel"], cfg["images"]["debian"]["image"])
-
-    return result
-
-
-def _get_config(file):
-    cfg = None
-    with open(file) as ymlfile:
-        cfg = yaml.load(ymlfile)
-    return cfg
-
-
-def _get_arch_dos(path):
-    found_archs=["x86", "ARM", "MIPS"]
-    for dirName, subdirList, fileList in os.walk(path, topdown=False):
-        path=dirName.split(os.sep)
-        for file in fileList:
-            print(dirName+str(file))
-            rslt = identify_platform(dirName+"/"+str(file))
-            if rslt != "":
-                return rslt
+import utils as ut
 
 
 def identify_platform(filepath):
-    filemagic = magic.Magic()
-    filetype = ""
+    """
+    Identify an ELF's architecture from libmagic output.
+
+    Returns a (format, canonical_arch) tuple suitable for config.yml / the CLI
+    -a flag, or None if the file is not a recognised ELF. Arch names are passed
+    through utils.normalize_arch so they line up with the emulator config keys.
+    """
     try:
-        #filetype = filemagic.id_filename(filepath)
         filetype = magic.from_file(filepath)
     except Exception as e:
-        # certain version of libmagic throws error while parsing file, the CPU information is however included\
-        # in the error in somecases
+        # Some libmagic builds raise but still include the CPU info in the
+        # exception message, so fall back to parsing that text.
         filetype = str(e)
-    #        filemagic.close()
+
     if "ELF 32-bit" in filetype:
         if "ARM" in filetype:
-            return "ELF", "arm"
+            return ("ELF", ut.normalize_arch("arm"))
         if "80386" in filetype:
-            return "ELF", "x86"
-        if ("MIPS" in filetype) and ("MSB" in filetype):
-            return "ELF", "mips"
+            return ("ELF", ut.normalize_arch("x86"))
         if "MIPS" in filetype:
-            return "ELF", "mipsel"
+            # Big- vs little-endian MIPS both map to the same config key.
+            return ("ELF", ut.normalize_arch("mipsel" if "LSB" in filetype else "mips"))
         if "PowerPC" in filetype:
-            return "ELF", "powerpc"
+            return ("ELF", ut.normalize_arch("powerpc"))
     if "ELF 64-bit" in filetype:
         if "x86-64" in filetype:
-            return "ELF", "x86-64"
-    return ""
+            return ("ELF", ut.normalize_arch("x86_64"))
+        if "aarch64" in filetype or "ARM aarch64" in filetype:
+            return ("ELF", ut.normalize_arch("aarch64"))
+        if "PowerPC" in filetype:
+            return ("ELF", ut.normalize_arch("ppc64"))
+    return None
+
+
+def find_arch_in_tree(path):
+    """Walk an extracted filesystem and return the first identifiable
+    (format, canonical_arch), or None if nothing was recognised."""
+    for dir_name, _subdirs, file_list in os.walk(path, topdown=False):
+        for file in file_list:
+            res = identify_platform(os.path.join(dir_name, file))
+            if res is not None:
+                return res
+    return None
+
+
+def extract(file_path):
+    """
+    Carve the (squashfs) root filesystem out of a firmware blob with binwalk,
+    unpack it, and tar it up next to the extracted tree.
+
+    Returns the path to the unpacked filesystem, or None if no filesystem
+    could be located inside the blob.
+    """
+    dest_path = os.path.splitext(os.path.basename(file_path))[0]
+
+    binwalk_call = subprocess.run(["binwalk", file_path], stdout=subprocess.PIPE)
+    lines = binwalk_call.stdout.decode(errors="replace").splitlines()
+
+    # Scan every entry for a filesystem signature and take its byte offset.
+    # The last filesystem match wins (matches the original intent); the first
+    # whitespace-separated token on a binwalk row is the decimal offset.
+    offset = None
+    for line in lines:
+        low = line.lower()
+        if "filesystem" in low or "squashfs" in low:
+            tokens = line.split()
+            if tokens and tokens[0].isdigit():
+                offset = int(tokens[0])
+
+    if offset is None:
+        return None
+
+    os.makedirs(dest_path, exist_ok=True)
+    subprocess.run(["dd", "bs=1", "skip=" + str(offset),
+                    "if=" + str(file_path), "of=" + dest_path + "/filesystem"])
+    time.sleep(2)
+
+    # Currently only squashfs images are handled (the common IoT case).
+    os.system("unsquashfs -f -d " + dest_path + "/fs " + dest_path + "/filesystem")
+
+    fs_path = dest_path + "/fs"
+    with tarfile.open(dest_path + "/fs_tar", "x:") as tar:
+        tar.add(fs_path, arcname=os.path.basename(fs_path))
+    return fs_path
+
 
 if __name__ == "__main__":
-    #extract("/home/pc/TFM/Dlink/DIR822C1_FW301WWb02.bin")
-    cfg = _get_config("config.yml")
-    arch = _get_arch_dos("DIR822C1_FW301WWb02/fs/usr")
-    #print(arch)
-    #start_emulator("DIR822C1_FW301WWb02/fs", "mips", cfg)
-    time.sleep(4)
-    start_emulator("DIR822C1_FW301WWb02/fs", "mips", cfg, interface="tap2")
-    qemu_command = get_qemu_command(arch[1], cfg)
-    sand_unit = Unit("DIR822C1_FW301WWb02/fs_tar", user="root", password="root")
-    sand_unit.execute(qemu_command)
+    ap = argparse.ArgumentParser(
+        prog="fsextractor.py",
+        description="Carve a root filesystem out of an IoT firmware image and "
+                    "identify its CPU architecture, ready to feed to diseker.py")
+    ap.add_argument("firmware", help="Firmware blob to carve")
+    args = ap.parse_args()
+
+    fs = extract(args.firmware)
+    if fs is None:
+        print("[-] No filesystem found in %s" % args.firmware)
+        raise SystemExit(1)
+
+    print("[+] Filesystem extracted to %s" % fs)
+    detected = find_arch_in_tree(fs)
+    if detected is None:
+        print("[-] Could not identify the architecture from the extracted tree")
+    else:
+        fmt, arch = detected
+        print("[+] Detected %s / %s" % (fmt, arch))
+        print("    Next: diseker.py -i <sample_from_%s> -c config.yml -a %s" % (fs, arch))

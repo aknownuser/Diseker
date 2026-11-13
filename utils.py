@@ -1,11 +1,13 @@
-import paramiko
-import scp as sp
 import yaml
 import datetime
 import pytz
 import string
 import random
 import hashlib
+
+# NOTE: paramiko / scp are imported lazily inside the SSH helpers below so the
+# core analysis pipeline (QEMU console via pexpect) can run without the SSH
+# stack installed. Only the optional ssh_* / scp / sftp helpers need them.
 
 # IPV4SEG = r'(?:^| )(?P<address>((?:[1-9]?\d|1\d{2}|2[0-4]\d|25[0-5])\.){3}(?:[1-9]?\d|1\d{2}|2[0-4]\d|25[0-5]))(?P<slash>/)?(?(slash)(?P<cidr>[0-9]|[12][0-9]|3[0-2]))(?:$| )'
 
@@ -33,6 +35,7 @@ URLS = r'^(ftps?|https?|chrome):\/\/[^\s$.?#].[^\s]*'
 
 
 def ssh_execute(host, port, user, password, commands, noprompt=False, logout=True):
+    import paramiko
     result = None
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -69,6 +72,7 @@ def ssh_prompt(host, port, user, password):
 
 
 def sftp(host, port, user, password, src_file, dst_file):
+    import paramiko
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
@@ -80,6 +84,8 @@ def sftp(host, port, user, password, src_file, dst_file):
 
 
 def scp(host, port, user, password, src_file, dest_file, dir=True):
+    import paramiko
+    import scp as sp
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
@@ -170,25 +176,10 @@ def entropy(string):
 
     return infoc
 
-# Static function get QEMU command, this one can be used by any one or any class, since
-# it has been defined to establish the scope of the program, it should only be changed
-# if a major change is done to the architecture
-
-#TODO: Needs to be improved  and we need to add more ARCHs in a correct way
-def get_qemu_command(arch, cfg):
-
-    sim = {"arm": "qemu-system-arm",
-           "mips": "qemu-system-mips",
-           "x86": "qemu-system-i386"}
-
-    result = "%s -M malta -kernel %s\
-     -hda %s \
-     -net user,hostfwd=tcp::10022-:22\
-     -net nic\
-     -monitor stdio \
-     -append \"root=/dev/sda1 console=tty0\"" % (sim[arch], cfg["images"]["debian"]["kernel"], cfg["images"]["debian"]["image"])
-
-    return result
+# QEMU command lines now live entirely in config.yml (cfg[arch][bits]["cmd"],
+# with "{image}" substituted per-run). The old hardcoded get_qemu_command here
+# used a stale cfg["images"]["debian"] schema and had no callers — removed to
+# keep a single source of truth for emulator invocation.
 
 
 # From date to miliseconds since epoch
