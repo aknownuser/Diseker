@@ -1,0 +1,30 @@
+# Diseker Sandbox — Python dependencies
+#
+# Host tools NOT installable via pip but required at runtime:
+#   qemu-system-* , radare2 , e2tools (e2cp/e2ls) , snort , tcpdump ,
+#   auditd/ausearch (inside the guest image) , unsquashfs , libmagic
+#
+# Install the Python side with:  pip install -r requirements.txt
+
+# Static analysis
+r2pipe              # radare2 pipe interface (disassembly, hashes, strings)
+binwalk             # firmware/entropy + filesystem carving
+python-magic        # file-type identification (needs libmagic)
+
+# Dynamic analysis / guest orchestration
+pexpect             # drive the QEMU console
+paramiko            # SSH transport (SandboxUnit path)
+scp                 # SCP on top of paramiko
+
+# Parsing & correlation
+pypacker            # pcap protocol dissection (DNS/ICMP/NTP/Telnet/HTTP)
+scapy               # NetworkDriver multiplexing
+
+# Reporting
+beautifulsoup4      # HTML template population
+matplotlib          # entropy plot
+
+# Storage & misc
+pymongo             # analysis result cache
+PyYAML              # config.yml
+pytz                # timezone-aware epoch conversion

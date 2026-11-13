@@ -241,7 +241,7 @@ class EventParser:
 
                         # if dict["pid"] not in self._treelogs.keys():
                         #    self._treelogs[dict["pid"]] = []
-                        raw_ts = re.search("\d*/\d*/\d* \d*:\d*:\d*.\d*", line).group(0).split(" ")
+                        raw_ts = re.search(r"\d*/\d*/\d* \d*:\d*:\d*.\d*", line).group(0).split(" ")
                         # Change from string to numerical
                         date =raw_ts[0].split("/")
                         date = [int(val) for val in date]

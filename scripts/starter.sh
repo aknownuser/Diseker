@@ -66,8 +66,8 @@ tcpdump -nn -vA -r $NET_PATH/net_logs.pcap port ftp or ftp-data -w $NET_PATH/ftp
 #Get NTP traffic 
 tcpdump -nn -vA -r $NET_PATH/net_logs.pcap port 123 -w $NET_PATH/ntp_net.pcap
 
-#Get RDP traffic 
-tcpdupm -nn -r $NET_PATH/net_logs.pcap "port 3389" -w $NET_PATH/rdp_net.pcap
+#Get RDP traffic
+tcpdump -nn -r $NET_PATH/net_logs.pcap "port 3389" -w $NET_PATH/rdp_net.pcap
 
 #Get ICMP traffic
 tcpdump -nn -r $NET_PATH/net_logs.pcap icmp -w $NET_PATH/icmp_net.pcap

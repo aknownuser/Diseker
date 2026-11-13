@@ -1,10 +1,18 @@
-mips:
-  kernel: /media/pc/Shared/Images/vmlinux-3.2.0-4-4kc-malta
-  image: /media/pc/Shared/Images/debian_wheezy_mips_standard.qcow2
-  pass:
-  host:
-  port:
-  cmd: qemu-system-arm -M versatilepb -kernel /home/user/QImages/arm_testing/zImage -dtb /home/user/QImages/arm_testing/versatile-pb.dtb -drive file={image},if=scsi,format=raw -append "rootwait root=/dev/sda console=ttyAMA0,115200" -serial stdio -netdev tap,id=intnet,ifname=tap0,script=no,downscript=no -device rtl8139,netdev=intnet,mac=52:54:00:00:EE:03
+# Emulator configuration.
+#
+# Schema (consumed by Orchestrator.DynamicAnalyser via cfg[arch][bits]):
+#
+#   <arch>:            canonical arch key (see utils.ARCH_ALIASES)
+#     <bits>:          integer, 32 or 64
+#       path:    directory holding the images
+#       kernel:  guest kernel to boot
+#       image:   rootfs image copied per-run and booted
+#       dtb:     device tree blob (arch-dependent, optional)
+#       cmd:     QEMU command line; "{image}" is substituted with the
+#                per-run copy of the rootfs at launch time.
+#
+# Only arm/32 is fully provisioned below; the others are placeholders with
+# the correct shape so adding an image is a drop-in change.
 
 arm:
   32:
@@ -14,34 +22,44 @@ arm:
     dtb: /home/user/QImages/arm_versatile/versatile-pb.dtb
     cmd: qemu-system-arm -M versatilepb -kernel /home/user/QImages/arm_versatile/zImage -dtb /home/user/QImages/arm_versatile/versatile-pb.dtb -drive file={image},if=scsi,format=raw -append "rootwait root=/dev/sda console=ttyAMA0,115200" -serial stdio -netdev tap,id=intnet,ifname=tap0,script=no,downscript=no -device rtl8139,netdev=intnet,mac=52:54:00:00:EE:03
 
-aarch:
+aarch64:
   64:
     path: /home/user/QImages/aarch64_virt
     kernel: /home/user/QImages/aarch64_virt/Image
-    image: /home/user/QImages/aarch64_virt
-    cmd: qemu-system-aarch64 -M virt -cpu cortex-a53 -nographic -smp 1 -kernel output/images/Image -append "rootwait root=/dev/vda console=ttyAMA0" -netdev user,id=eth0 -device virtio-net-device,netdev=eth0 -drive file=rootfs.ext4,if=none,format=raw,id=hd0 -device virtio-blk-device,drive=hd0
+    image:
+    dtb:
+    cmd: qemu-system-aarch64 -M virt -cpu cortex-a53 -nographic -smp 1 -kernel /home/user/QImages/aarch64_virt/Image -append "rootwait root=/dev/vda console=ttyAMA0" -netdev tap,id=intnet,ifname=tap0,script=no,downscript=no -device virtio-net-device,netdev=intnet -drive file={image},if=none,format=raw,id=hd0 -device virtio-blk-device,drive=hd0
+
+mips:
+  32:
+    path: /home/user/QImages/mips_malta/
+    kernel:
+    image:
+    dtb:
+    cmd:
 
 x86:
   32:
     path: /home/user/QImages/x86/
     kernel:
     image:
-
+    dtb:
     cmd:
 
+x86_64:
   64:
     path: /home/user/QImages/x86_64/
     kernel:
     image:
-
+    dtb:
     cmd:
 
-ppcp:
+ppc64:
   64:
     path: /home/user/QImages/ppc64_pseries/
     kernel:
     image:
-
+    dtb:
     cmd:
 
 tmp: /tmp/

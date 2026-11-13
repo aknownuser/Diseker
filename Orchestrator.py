@@ -158,8 +158,10 @@ class DynamicAnalyser(Analyser):
         self.file = file
         self.alive = False
         self.cfg = config
-        self.arch = arch
-        self.bit = bit
+        # Normalise so CLI spellings (aarch64/ppc64/...) and radare2-detected
+        # names (arm/ppc/x86/...) both resolve to the same config.yml key.
+        self.arch = ut.normalize_arch(arch)
+        self.bit = ut.normalize_bits(bit)
         self._fs = None
         self.exectime = exectime
 
@@ -171,18 +173,26 @@ class DynamicAnalyser(Analyser):
         self._fs = os.path.join(path, ut.get_rand_string(8))
         logname = os.path.join(path, ut.get_rand_string(8))
 
-        base = self.cfg[self.arch][self.bit]
-        image = base["image"]
+        try:
+            base = self.cfg[self.arch][self.bit]
+        except (KeyError, TypeError):
+            raise Exception("No emulator configured for arch=%s bits=%s in config.yml"
+                            % (self.arch, self.bit))
+        image = base.get("image")
 
         if image is not None:
             shutil.copy(image, self._fs)
         else:
             raise Exception("Path was not found in configuration file")
 
-        # os.system('e2cp -G 0 -O 0 -P 777 starter.sh %s:/root/' % self._fs)
-        # os.system('e2cp -G 0 -O 0 -P 777 follower.sh %s:/root/' % self._fs)
-
+        # Drop the sample into the guest...
         os.system('e2cp -G 0 -O 0 -P 755 %s %s:/root/tobe_executed' % (self.file, self._fs))
+
+        # ...along with the guest-side agent scripts and the audit ruleset, so
+        # the sandbox is self-contained and does not rely on a pre-baked image.
+        for script in ("starter.sh", "follower.sh", "apply_rule.sh"):
+            os.system('e2cp -G 0 -O 0 -P 755 scripts/%s %s:/root/' % (script, self._fs))
+        os.system('e2cp -G 0 -O 0 -P 644 Rules/test-rules.rules %s:/root/' % self._fs)
 
         qemu_cmd = base["cmd"].format(image=self._fs)
 
@@ -301,8 +311,11 @@ class Orchestrator:
     def execute_once(self, cmd):
         hash256 = ut.sha256_checksum(cmd["file"])
         val = self.client.get_data(hash256)
-        if val is None:
-            unit = Unit(self.cfg, "", cmd["file"], arch=cmd["arch"], bits=cmd["bits"])
+        # Re-analyse on a cache miss, or when the caller forces it.
+        if val is None or cmd.get("force"):
+            unit = Unit(self.cfg, "", cmd["file"],
+                        exectime=cmd.get("time", 120),
+                        arch=cmd["arch"], bits=cmd["bits"])
             unit.start()
             unit.join()
             report = rep.ReportGenerator(self.cfg["schema_path"],  unit.dynamic_logs, unit.static_analyser.out,
@@ -314,8 +327,10 @@ class Orchestrator:
             result["reports_path"] = rep_path
             result["logs_path"] = unit.dynamic_logs
             result["filename"] = os.path.basename(cmd["file"])
-            result["hash"] = val
-            result["scan_count"] = 0
+            # Store the file's own hash so future runs hit the cache.
+            result["hash"] = hash256
+            # Preserve/boost the scan counter across re-analyses.
+            result["scan_count"] = (val.get("scan_count", 0) + 1) if val else 1
             self.client.put_data(result)
             return result
         else:

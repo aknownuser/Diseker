@@ -96,8 +96,36 @@ def scp(host, port, user, password, src_file, dest_file, dir=True):
 def get_config(file):
     cfg = None
     with open(file) as ymlfile:
-        cfg = yaml.load(ymlfile)
+        # Loader is mandatory on modern PyYAML; SafeLoader is enough here.
+        cfg = yaml.load(ymlfile, Loader=yaml.SafeLoader)
     return cfg
+
+
+# Canonical architecture keys used in config.yml. Both the CLI (-a) and the
+# radare2 auto-detection produce a variety of spellings for the same target;
+# this maps every spelling we expect onto one canonical config key.
+ARCH_ALIASES = {
+    "arm": "arm", "armel": "arm", "armhf": "arm",
+    "aarch64": "aarch64", "aarch": "aarch64", "arm64": "aarch64",
+    "x86": "x86", "x86_32": "x86", "i386": "x86", "i686": "x86", "ia32": "x86",
+    "x86_64": "x86_64", "amd64": "x86_64", "x64": "x86_64",
+    "ppc": "ppc64", "ppc64": "ppc64", "ppcp": "ppc64", "powerpc": "ppc64",
+    "mips": "mips", "mipsel": "mips",
+}
+
+
+def normalize_arch(arch):
+    """Map any accepted arch spelling onto the canonical config.yml key."""
+    if arch is None:
+        return None
+    return ARCH_ALIASES.get(str(arch).lower(), str(arch).lower())
+
+
+def normalize_bits(bits):
+    """Config bit keys are integers (32/64); coerce whatever we were given."""
+    if bits is None:
+        return None
+    return int(bits)
 
 
 def get_rand_string(length, codef=string.ascii_letters):
