@@ -76,7 +76,11 @@ stealth:
   #                 sample); the guest image must ship auditd.
   #   qemu-plugin - host-side QEMU TCG plugin, invisible to the guest
   #                 (requires a plugins-enabled QEMU build; see tracing/).
+  #                 Produces plugin_trace_summary.json (flat behavioral summary);
+  #                 full per-process report parity is still in progress.
   syscall_backend: auditd
+  # Path to the compiled TCG plugin, used only when syscall_backend==qemu-plugin.
+  plugin_so: tracing/libsyscall_trace.so
   # Fingerprint pools (optional; sensible defaults live in stealth.py).
   mac_oui_pool: ["B8:27:EB", "DC:A6:32", "00:1D:0F", "00:E0:4C", "00:14:6C"]
   hostname_pool: ["router", "gateway", "dvr", "ipcam", "nas"]

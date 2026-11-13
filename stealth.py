@@ -79,6 +79,16 @@ def apply_fingerprint_to_cmd(cmd, mac=None):
     return cmd
 
 
+def build_plugin_args(so_path, out_path):
+    """
+    QEMU args that load the host-side syscall tracer (tracing/syscall_trace.c)
+    and point it at `out_path`. Append this to the emulator command line when
+    stealth.syscall_backend == "qemu-plugin" so syscalls are recorded on the
+    host instead of by in-guest auditd.
+    """
+    return '-plugin %s,out=%s -d plugin' % (so_path, out_path)
+
+
 class Fingerprint:
     """The randomized identity chosen for a single analysis run."""
 

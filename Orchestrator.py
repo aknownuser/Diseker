@@ -171,6 +171,8 @@ class DynamicAnalyser(Analyser):
         self._stealth_cfg = (config.get("stealth") or {}) if config else {}
         self._stealth_on = bool(self._stealth_cfg.get("enabled"))
         self._capture = None
+        self._backend = "auditd"
+        self._plugin_trace = None
 
     def analyse(self):
         # Random name for the copy of the new file system to emulate
@@ -194,6 +196,12 @@ class DynamicAnalyser(Analyser):
 
         qemu_cmd = base["cmd"].format(image=self._fs)
 
+        # Syscall backend: "auditd" runs in-guest (visible); "qemu-plugin" traces
+        # on the host via the TCG plugin (invisible to the sample).
+        backend = self._stealth_cfg.get("syscall_backend", "auditd") if self._stealth_on else "auditd"
+        self._backend = backend
+        self._plugin_trace = None
+
         # Decide where the sample lands and which guest agent drives the run.
         # Stealth mode randomizes the drop path and the NIC MAC so the sample
         # sees neither /root/tobe_executed nor a QEMU OUI.
@@ -201,8 +209,22 @@ class DynamicAnalyser(Analyser):
             fp = stealth.Fingerprint.generate(self._stealth_cfg)
             qemu_cmd = stealth.apply_fingerprint_to_cmd(qemu_cmd, mac=fp.mac)
             sample_path = fp.sample_path
-            starter = "starter_stealth.sh"
-            print("[stealth] %s" % fp)
+            # Host-side tracing needs no auditd agent; a minimal launcher suffices.
+            starter = "starter_min.sh" if backend == "qemu-plugin" else "starter_stealth.sh"
+            print("[stealth] %s backend=%s" % (fp, backend))
+
+            # Rewrite the guest hostname so the login banner / uname is not
+            # "buildroot", and persist the fingerprint for reproducibility.
+            self._write_guest_hostname(path, fp.hostname)
+            with open(os.path.join(path, "fingerprint.json"), "w") as fpj:
+                json.dump(dict(fp.as_dict(), backend=backend), fpj)
+
+            # Load the host-side syscall tracer into QEMU for the plugin backend.
+            if backend == "qemu-plugin":
+                self._plugin_trace = os.path.join(path, "logs", "syscalls", "plugin_syscalls.log")
+                os.makedirs(os.path.dirname(self._plugin_trace), exist_ok=True)
+                so = self._stealth_cfg.get("plugin_so", "tracing/libsyscall_trace.so")
+                qemu_cmd += " " + stealth.build_plugin_args(so, self._plugin_trace)
         else:
             sample_path = "/root/tobe_executed"
             starter = "starter.sh"
@@ -210,11 +232,15 @@ class DynamicAnalyser(Analyser):
         # Drop the sample at its (possibly randomized) absolute path...
         os.system('e2cp -G 0 -O 0 -P 755 %s %s:%s' % (self.file, self._fs, sample_path))
 
-        # ...along with the guest-side agent scripts and the audit ruleset, so
-        # the sandbox is self-contained and does not rely on a pre-baked image.
-        for script in (starter, "follower.sh", "apply_rule.sh"):
+        # ...along with the guest-side agent scripts. auditd ruleset + apply_rule
+        # are only needed when the auditd backend is in use.
+        guest_scripts = [starter]
+        if backend == "auditd":
+            guest_scripts += ["follower.sh", "apply_rule.sh"]
+        for script in guest_scripts:
             os.system('e2cp -G 0 -O 0 -P 755 scripts/%s %s:/root/' % (script, self._fs))
-        os.system('e2cp -G 0 -O 0 -P 644 Rules/test-rules.rules %s:/root/' % self._fs)
+        if backend == "auditd":
+            os.system('e2cp -G 0 -O 0 -P 644 Rules/test-rules.rules %s:/root/' % self._fs)
 
         # In stealth mode capture traffic on the host TAP before the guest boots,
         # so no tcpdump ever runs inside the guest.
@@ -229,16 +255,18 @@ class DynamicAnalyser(Analyser):
         time.sleep(2)
 
         try:
-            # Generic prompt: the hostname is an image-level artifact and may not
-            # be "buildroot" once the image is stealth-hardened.
+            # Generic prompt: the hostname is randomized in stealth mode and no
+            # longer guaranteed to be "buildroot".
             self.qemu.expect("login: ")
             self.qemu.sendline("root")
             time.sleep(2)
             self.qemu.expect('#')
-            self.qemu.sendline("./apply_rule.sh")
-            self.qemu.expect('#')
+            # auditd backend loads the ruleset first; plugin backend needs nothing.
+            if backend == "auditd":
+                self.qemu.sendline("./apply_rule.sh")
+                self.qemu.expect('#')
             if self._stealth_on:
-                # Pass the drop path and the analysis window to the slim agent.
+                # Pass the drop path and the analysis window to the agent.
                 self.qemu.sendline('./%s %s %d' % (starter, sample_path, int(self.exectime)))
             else:
                 self.qemu.sendline('./%s %s' % (starter, sample_path))
@@ -263,11 +291,21 @@ class DynamicAnalyser(Analyser):
             self._extract_logs(path)
         return path
 
+    def _write_guest_hostname(self, path, hostname):
+        """Overwrite /etc/hostname in the guest image so the login banner and
+        uname no longer read 'buildroot'."""
+        hostfile = os.path.join(path, "hostname")
+        with open(hostfile, "w") as hf:
+            hf.write(hostname + "\n")
+        os.system('e2cp -G 0 -O 0 -P 644 %s %s:/etc/hostname' % (hostfile, self._fs))
+
     def _extract_logs(self, path):
         if not os.path.exists(path):
             os.makedirs(path)
         # Pull syscall logs out of the guest image (network logs, in stealth
-        # mode, were already captured host-side so the guest has none).
+        # mode, were already captured host-side so the guest has none). For the
+        # qemu-plugin backend there are no in-guest syscall logs either — the
+        # trace was written directly to the host.
         os.system('scripts/extract.sh %s %s' % (self._fs, path))
 
         if self._stealth_on and self._capture is not None:
@@ -278,6 +316,16 @@ class DynamicAnalyser(Analyser):
             # Legacy path: traffic was captured inside the guest by starter.sh.
             os.system('snort -q -A console -c /etc/snort/snort.conf -r %s/logs/network/net_logs.pcap -l tmp/ > '
                       '%s/logs/network/snort_alerts.txt' % (path, path))
+
+        # Summarise the host-side syscall trace (qemu-plugin backend only).
+        if self._backend == "qemu-plugin" and self._plugin_trace and os.path.exists(self._plugin_trace):
+            try:
+                from tracing import plugin_trace
+                summary = plugin_trace.summarize_file(self._plugin_trace, arch=self.arch)
+                with open(os.path.join(path, "plugin_trace_summary.json"), "w") as sf:
+                    json.dump(summary, sf)
+            except Exception as e:
+                print("[-] plugin trace summarise failed: %s" % e)
 
     def kill(self):
         if self._capture is not None:
