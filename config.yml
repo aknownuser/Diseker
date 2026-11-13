@@ -64,3 +64,21 @@ ppc64:
 
 tmp: /tmp/
 schema_path: Report/
+
+# Stealth settings — keep instrumentation invisible to the sample (see STEALTH.md).
+stealth:
+  enabled: true
+  # Host-side TAP the guest NIC is attached to; network is captured here, not
+  # inside the guest. Must match ifname= in the arch cmd above.
+  capture_iface: tap0
+  # Syscall tracing backend:
+  #   auditd      - in-guest auditd/ausearch (works today, but visible to the
+  #                 sample); the guest image must ship auditd.
+  #   qemu-plugin - host-side QEMU TCG plugin, invisible to the guest
+  #                 (requires a plugins-enabled QEMU build; see tracing/).
+  syscall_backend: auditd
+  # Fingerprint pools (optional; sensible defaults live in stealth.py).
+  mac_oui_pool: ["B8:27:EB", "DC:A6:32", "00:1D:0F", "00:E0:4C", "00:14:6C"]
+  hostname_pool: ["router", "gateway", "dvr", "ipcam", "nas"]
+  sample_name_pool: ["update", "cfgd", "sysinit", "watchdog", "udhcpc"]
+  sample_dir_pool: ["/tmp", "/var/tmp", "/var/run"]

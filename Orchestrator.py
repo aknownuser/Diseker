@@ -17,6 +17,8 @@ import report as rep
 import json
 from pexpect import popen_spawn
 import sys
+import stealth
+import netcapture
 class Analyser:
 
     def __init__(self, file_path):
@@ -164,6 +166,11 @@ class DynamicAnalyser(Analyser):
         self.bit = ut.normalize_bits(bit)
         self._fs = None
         self.exectime = exectime
+        # Stealth configuration: when enabled, instrumentation runs host-side
+        # and the guest fingerprint is randomized per run (see STEALTH.md).
+        self._stealth_cfg = (config.get("stealth") or {}) if config else {}
+        self._stealth_on = bool(self._stealth_cfg.get("enabled"))
+        self._capture = None
 
     def analyse(self):
         # Random name for the copy of the new file system to emulate
@@ -185,16 +192,36 @@ class DynamicAnalyser(Analyser):
         else:
             raise Exception("Path was not found in configuration file")
 
-        # Drop the sample into the guest...
-        os.system('e2cp -G 0 -O 0 -P 755 %s %s:/root/tobe_executed' % (self.file, self._fs))
+        qemu_cmd = base["cmd"].format(image=self._fs)
+
+        # Decide where the sample lands and which guest agent drives the run.
+        # Stealth mode randomizes the drop path and the NIC MAC so the sample
+        # sees neither /root/tobe_executed nor a QEMU OUI.
+        if self._stealth_on:
+            fp = stealth.Fingerprint.generate(self._stealth_cfg)
+            qemu_cmd = stealth.apply_fingerprint_to_cmd(qemu_cmd, mac=fp.mac)
+            sample_path = fp.sample_path
+            starter = "starter_stealth.sh"
+            print("[stealth] %s" % fp)
+        else:
+            sample_path = "/root/tobe_executed"
+            starter = "starter.sh"
+
+        # Drop the sample at its (possibly randomized) absolute path...
+        os.system('e2cp -G 0 -O 0 -P 755 %s %s:%s' % (self.file, self._fs, sample_path))
 
         # ...along with the guest-side agent scripts and the audit ruleset, so
         # the sandbox is self-contained and does not rely on a pre-baked image.
-        for script in ("starter.sh", "follower.sh", "apply_rule.sh"):
+        for script in (starter, "follower.sh", "apply_rule.sh"):
             os.system('e2cp -G 0 -O 0 -P 755 scripts/%s %s:/root/' % (script, self._fs))
         os.system('e2cp -G 0 -O 0 -P 644 Rules/test-rules.rules %s:/root/' % self._fs)
 
-        qemu_cmd = base["cmd"].format(image=self._fs)
+        # In stealth mode capture traffic on the host TAP before the guest boots,
+        # so no tcpdump ever runs inside the guest.
+        if self._stealth_on:
+            iface = self._stealth_cfg.get("capture_iface", "tap0")
+            self._capture = netcapture.HostCapture(iface, os.path.join(path, "logs", "network"))
+            self._capture.start()
 
         self.qemu = pexpect.spawn("%s" % qemu_cmd, timeout=305, searchwindowsize=500, encoding='utf-8')
         self.qemu.logfile = open(logname, "w", encoding='utf-8')
@@ -202,19 +229,23 @@ class DynamicAnalyser(Analyser):
         time.sleep(2)
 
         try:
-            self.qemu.expect("buildroot login: ")
+            # Generic prompt: the hostname is an image-level artifact and may not
+            # be "buildroot" once the image is stealth-hardened.
+            self.qemu.expect("login: ")
             self.qemu.sendline("root")
             time.sleep(2)
             self.qemu.expect('#')
             self.qemu.sendline("./apply_rule.sh")
             self.qemu.expect('#')
-            self.qemu.sendline('./starter.sh tobe_executed')
+            if self._stealth_on:
+                # Pass the drop path and the analysis window to the slim agent.
+                self.qemu.sendline('./%s %s %d' % (starter, sample_path, int(self.exectime)))
+            else:
+                self.qemu.sendline('./%s %s' % (starter, sample_path))
             self.alive = True
-            # We first wait to get the bash again, we may need to check that out and improve it
-            self.qemu.expect('#')
-
-            # Wait for sometime so the execution can be though to be complete
-            time.sleep(self.exectime)
+            # The agent runs the sample for the analysis window, then returns the
+            # prompt; wait long enough for that whole window plus harvesting.
+            self.qemu.expect('#', timeout=int(self.exectime) + 120)
 
         except Exception as e:
             print("[-] Error: %s" % e)
@@ -235,11 +266,22 @@ class DynamicAnalyser(Analyser):
     def _extract_logs(self, path):
         if not os.path.exists(path):
             os.makedirs(path)
+        # Pull syscall logs out of the guest image (network logs, in stealth
+        # mode, were already captured host-side so the guest has none).
         os.system('scripts/extract.sh %s %s' % (self._fs, path))
-        os.system('snort -q -A console -c /etc/snort/snort.conf -r %s/logs/network/net_logs.pcap -l tmp/ > '
-                  '%s/logs/network/snort_alerts.txt' % (path, path))
+
+        if self._stealth_on and self._capture is not None:
+            # Stop the host capture and slice/snort it host-side, producing the
+            # same per-protocol pcaps + snort_alerts.txt the parser expects.
+            self._capture.finalize()
+        else:
+            # Legacy path: traffic was captured inside the guest by starter.sh.
+            os.system('snort -q -A console -c /etc/snort/snort.conf -r %s/logs/network/net_logs.pcap -l tmp/ > '
+                      '%s/logs/network/snort_alerts.txt' % (path, path))
 
     def kill(self):
+        if self._capture is not None:
+            self._capture.stop()
         if hasattr(self, "qemu"):
             self.qemu.close(force=True)
         self.cleanup()
