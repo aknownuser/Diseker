@@ -45,6 +45,8 @@ def main(argv):
                         help="Architecture of the file")
 
     parser.add_argument("-b", "--bits", default=None, type=int, choices=[32, 64],  help="Bits of architecture")
+    parser.add_argument("-e", "--endian", default=None, choices=["le", "be"],
+                        help="Endianness (auto-detected from the binary if omitted)")
     parser.add_argument("-t", "--time", default=120.0, type=float, help="Execution time")
     parser.add_argument("-o", "--out", default=".", help="Destination path")
 
@@ -54,6 +56,7 @@ def main(argv):
     cmd["force"] = args.force
     cmd["arch"] = args.arch
     cmd["bits"] = args.bits
+    cmd["endian"] = args.endian
     cmd["out"] = args.out
     cmd["time"] = args.time
     print("Starting the sandbox")

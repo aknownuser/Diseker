@@ -1,18 +1,25 @@
 # Emulator configuration.
 #
-# Schema (consumed by Orchestrator.DynamicAnalyser via cfg[arch][bits]):
+# Schema (resolved by utils.resolve_target; consumed by DynamicAnalyser):
 #
 #   <arch>:            canonical arch key (see utils.ARCH_ALIASES)
 #     <bits>:          integer, 32 or 64
+#       # EITHER an endian-agnostic leaf:
 #       path:    directory holding the images
 #       kernel:  guest kernel to boot
 #       image:   rootfs image copied per-run and booted
-#       dtb:     device tree blob (arch-dependent, optional)
-#       cmd:     QEMU command line; "{image}" is substituted with the
-#                per-run copy of the rootfs at launch time.
+#       dtb:     device tree blob (arch-dependent, required for e.g. arm)
+#       cmd:     OPTIONAL QEMU command line; "{image}" is substituted with the
+#                per-run rootfs copy. If omitted, it is synthesized from the
+#                per-arch profile in archprofiles.py — so for most arches you
+#                only provide kernel/image/dtb and nothing else.
+#       # OR an endianness map when big/little need different images:
+#       le: { kernel, image, dtb, [cmd] }
+#       be: { kernel, image, dtb, [cmd] }
 #
-# Only arm/32 is fully provisioned below; the others are placeholders with
-# the correct shape so adding an image is a drop-in change.
+# Endianness is auto-detected from the binary (radare2); -e/--endian overrides.
+# Only arm/32 is fully provisioned; the rest show the shape so adding an image
+# (and letting archprofiles build the command) is a drop-in change.
 
 arm:
   32:
@@ -30,13 +37,19 @@ aarch64:
     dtb:
     cmd: qemu-system-aarch64 -M virt -cpu cortex-a53 -nographic -smp 1 -kernel /home/user/QImages/aarch64_virt/Image -append "rootwait root=/dev/vda console=ttyAMA0" -netdev tap,id=intnet,ifname=tap0,script=no,downscript=no -device virtio-net-device,netdev=intnet -drive file={image},if=none,format=raw,id=hd0 -device virtio-blk-device,drive=hd0
 
+# Endianness-aware example: MIPS ships both big- and little-endian malware, and
+# each needs its own image/kernel. No 'cmd' here — archprofiles synthesizes it
+# (qemu-system-mips for be, qemu-system-mipsel for le).
 mips:
   32:
-    path: /home/user/QImages/mips_malta/
-    kernel:
-    image:
-    dtb:
-    cmd:
+    be:
+      path: /home/user/QImages/mips_malta_be/
+      kernel: /home/user/QImages/mips_malta_be/vmlinux
+      image:
+    le:
+      path: /home/user/QImages/mips_malta_le/
+      kernel: /home/user/QImages/mips_malta_le/vmlinux
+      image:
 
 x86:
   32:

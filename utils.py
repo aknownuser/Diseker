@@ -134,6 +134,61 @@ def normalize_bits(bits):
     return int(bits)
 
 
+# Endianness spellings from radare2 ("little"/"big"), libmagic ("LSB"/"MSB"),
+# and common shorthand all collapse to canonical "le" / "be".
+_ENDIAN_ALIASES = {
+    "le": "le", "little": "le", "lsb": "le", "el": "le", "littleendian": "le",
+    "be": "be", "big": "be", "msb": "be", "eb": "be", "bigendian": "be",
+}
+
+
+def normalize_endian(endian):
+    """Map any endianness spelling onto canonical 'le' / 'be' (or None)."""
+    if endian is None:
+        return None
+    return _ENDIAN_ALIASES.get(str(endian).lower().replace("-", "").replace("_", ""))
+
+
+# Keys that mark a config node as an endianness map rather than a leaf target.
+_ENDIAN_KEYS = {"le", "be", "little", "big", "lsb", "msb", "eb", "el"}
+
+
+def resolve_target(cfg, arch, bits, endian=None):
+    """
+    Resolve the emulator target entry for (arch, bits[, endian]).
+
+    Supports two config layouts under cfg[arch][bits]:
+      * endian-agnostic leaf:   { image, kernel, cmd, ... }
+      * endian map:             { le: {...}, be: {...} }
+
+    Returns the leaf dict (image/kernel/[cmd]/...). Raises with a clear message
+    when nothing matches, so the operator knows exactly what to provision.
+    """
+    arch_n = normalize_arch(arch)
+    bits_n = normalize_bits(bits)
+    try:
+        node = cfg[arch_n][bits_n]
+    except (KeyError, TypeError):
+        raise Exception("No emulator configured for arch=%s bits=%s in config.yml"
+                        % (arch_n, bits_n))
+    if not isinstance(node, dict):
+        raise Exception("Malformed config entry for %s/%s" % (arch_n, bits_n))
+
+    # Endian map? Pick the requested endianness (or the only one present).
+    if set(node.keys()) & _ENDIAN_KEYS:
+        en = normalize_endian(endian)
+        # Try the requested endianness first, then any canonical spelling.
+        candidates = ([en] if en else []) + ["le", "little", "lsb", "be", "big", "msb"]
+        for key in candidates:
+            if key in node:
+                return node[key]
+        raise Exception("No image for arch=%s bits=%s endian=%s in config.yml"
+                        % (arch_n, bits_n, endian))
+
+    # Endian-agnostic leaf.
+    return node
+
+
 def get_rand_string(length, codef=string.ascii_letters):
     """
     Random string generator

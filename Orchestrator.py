@@ -19,6 +19,7 @@ from pexpect import popen_spawn
 import sys
 import stealth
 import netcapture
+import archprofiles
 class Analyser:
 
     def __init__(self, file_path):
@@ -53,6 +54,8 @@ class StaticAnalyser(Analyser):
         self.out["file"]["size"] = aux["binsz"]
         self.out["file"]["class"] = aux["class"]
         self.out["file"]["bits"] = aux["bits"]
+        # Endianness drives image selection for MIPS/ARM (big vs little).
+        self.out["file"]["endian"] = aux.get("endian")
         self.out["file"]["md5"] = r2.cmd("ph md5")[:-1]
         self.out["file"]["sha1"] = r2.cmd("ph sha1")[:-1]
         self.out["file"]["sha256"] = r2.cmd("ph sha256")[:-1]
@@ -155,7 +158,7 @@ class StaticAnalyser(Analyser):
 
 class DynamicAnalyser(Analyser):
 
-    def __init__(self, file, config, arch, bit, exectime):
+    def __init__(self, file, config, arch, bit, exectime, endian=None):
         super().__init__(file)
         self.file = file
         self.alive = False
@@ -164,6 +167,7 @@ class DynamicAnalyser(Analyser):
         # names (arm/ppc/x86/...) both resolve to the same config.yml key.
         self.arch = ut.normalize_arch(arch)
         self.bit = ut.normalize_bits(bit)
+        self.endian = ut.normalize_endian(endian)
         self._fs = None
         self.exectime = exectime
         # Stealth configuration: when enabled, instrumentation runs host-side
@@ -182,19 +186,27 @@ class DynamicAnalyser(Analyser):
         self._fs = os.path.join(path, ut.get_rand_string(8))
         logname = os.path.join(path, ut.get_rand_string(8))
 
-        try:
-            base = self.cfg[self.arch][self.bit]
-        except (KeyError, TypeError):
-            raise Exception("No emulator configured for arch=%s bits=%s in config.yml"
-                            % (self.arch, self.bit))
+        # Resolve the emulator target for this arch/bits/endianness (handles both
+        # endian-agnostic and per-endianness config layouts).
+        base = ut.resolve_target(self.cfg, self.arch, self.bit, self.endian)
         image = base.get("image")
 
         if image is not None:
             shutil.copy(image, self._fs)
         else:
-            raise Exception("Path was not found in configuration file")
+            raise Exception("No image provisioned for arch=%s bits=%s endian=%s "
+                            "in config.yml" % (self.arch, self.bit, self.endian))
 
-        qemu_cmd = base["cmd"].format(image=self._fs)
+        # Use an explicit cmd if the operator gave one; otherwise synthesize it
+        # from the per-arch profile so adding an arch is just dropping in paths.
+        cmd_template = base.get("cmd")
+        if not cmd_template:
+            tap = self._stealth_cfg.get("capture_iface", "tap0") if self._stealth_on else "tap0"
+            cmd_template = archprofiles.build_command(
+                self.arch, self.bit, self.endian,
+                kernel=base.get("kernel"), image="{image}",
+                dtb=base.get("dtb"), tap=tap)
+        qemu_cmd = cmd_template.format(image=self._fs)
 
         # Syscall backend: "auditd" runs in-guest (visible); "qemu-plugin" traces
         # on the host via the TCG plugin (invisible to the sample).
@@ -341,7 +353,7 @@ class DynamicAnalyser(Analyser):
 
 class Unit(threading.Thread):
 
-    def __init__(self, cfg, fs_path, file, exectime=120, arch=None, bits=None):
+    def __init__(self, cfg, fs_path, file, exectime=120, arch=None, bits=None, endian=None):
         threading.Thread.__init__(self)
 
         self.fs_path = fs_path
@@ -353,23 +365,21 @@ class Unit(threading.Thread):
         self.exectime = exectime
         self._arch = arch
         self._bit = bits
+        self._endian = endian
         # Connect with DB if its already done then OKEY
 
     def run(self):
         #Execute the static analyser
         self.static_analyser.analyse()
-        if self._arch is not None and self._bit is not None:
-            self.dynamic = DynamicAnalyser(self.file, self.cfg,
-                                           self._arch,
-                                           self._bit,
-                                           self.exectime)
-        else:
-            self.dynamic = DynamicAnalyser(self.file, self.cfg,
-                                           self.static_analyser.out["file"]["arch"],
-                                           self.static_analyser.out["file"]["bits"],
-                                           self.exectime)
+        # Operator-supplied arch/bits/endian win; otherwise fall back to what the
+        # static analyser detected from the binary (the zero-config path).
+        detected = self.static_analyser.out["file"]
+        arch = self._arch or detected.get("arch")
+        bits = self._bit or detected.get("bits")
+        endian = self._endian or detected.get("endian")
+        self.dynamic = DynamicAnalyser(self.file, self.cfg,
+                                       arch, bits, self.exectime, endian=endian)
         # Execute the dynamic analyser
-
         self.dynamic_logs = self.dynamic.analyse()
         self.dynamic.cleanup()
 
@@ -405,7 +415,8 @@ class Orchestrator:
         if val is None or cmd.get("force"):
             unit = Unit(self.cfg, "", cmd["file"],
                         exectime=cmd.get("time", 120),
-                        arch=cmd["arch"], bits=cmd["bits"])
+                        arch=cmd["arch"], bits=cmd["bits"],
+                        endian=cmd.get("endian"))
             unit.start()
             unit.join()
             report = rep.ReportGenerator(self.cfg["schema_path"],  unit.dynamic_logs, unit.static_analyser.out,
